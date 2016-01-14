@@ -1,0 +1,181 @@
+Name:Qinyi Yan	
+UCLA ID: 704406413
+
+
+-------------------------------------------------------------------------------
+
+Response to Exercise 1:
+Answer:
+Under most cases, the sys_getpid() will return the correct value if we replace run(current) with schedule(). However, if there are other processes trying to access and make changes to this process's memory (in particular, change the value stored in its eax register), the return value of sys_getpid() call can be different. 
+Reason: 
+When a process calls sys_getpid(), 	the system receives the interruption and store the pid number of the current process to its own eax register. Since each process has its own registers and stacks, this pid number can be constant as long as there's no other processes trying to modify it. However, since the system does not provide memory isolation, it is probable that other processes will modify the eax register, which will cause wrong return value.
+
+Response to Exercise 2:
+Please refer to mpos-kern.c (do_fork function and copy_stack function).
+
+Response to Exercise 3:
+I added a one field in process descripter:pid_t p_wait, which is to store the pid number of the process that is waiting for the current process to exit. Typically, one process's p_wait indicates its "parent" process. Until the "child" process goes to P_ZOMBIE status, the "parent" process will stay in P_BLOCKED status. This part of code is given in INT_SYS_WAIT case. After a process gets exited, the waiting process will be set to RUNNABLE. The code doing this part of job is in the INT_SYS_EXIT case.
+
+Response to Exercise 4:
+Typcially, the bug exists because the old processes are not cleaned up after they exited. Since the size of proc_array is limited to NPROCS, it is very likely we will run out of space for the new processes. The resolution for this bug is that:set the P_state of the process that has exited to P_EMPTY, freeing them to be reused. The code to do this job is given in INT_SYS_EXIT and INT_SYS_WAIT case.
+
+-------------------EXTRA CREDITS------------------
+Response to Exercise 5:
+
+void start(void) {
+int x = 0; /* note that local variable x lives on the stack */
+
+/* YOUR CODE HERE */
+volatile int *child = &x;	//the int which the pointer points to is volatile;
+int* volatile parent = &x;	//the pointer itself is volatile;
+//code part1 end//
+
+pid_t p = sys_fork();
+if (p == 0)		//child process
+/* YOUR CODE HERE */
+{
+*child = 1;
+*parent = 1;
+}
+//code part1 end//
+else if (p > 0)		//parent process
+sys_wait(p); // assume blocking implementation
+app_printf("%d", x);
+sys_exit(0);
+}
+
+Response to Exercise 6:
+the code added in to files:
+//mpos.h
+#define INT_SYS_NEWTHREAD   90
+
+//mpos-app.h
+static inline pid_t 
+sys_newthread(void (*start_function)(void))
+{
+	pid_t result;
+	asm volatile("int %1\n"
+			 : "=a"(result)
+			 : "i" (INT_SYS_NEWTHREAD),
+			   "a" (start_function)
+			 : "cc", "memory");
+	return result;
+}
+
+//mpos-kern.c
+static pid_t
+do_newthread(process_t *current, int start_function)
+{
+	pid_t i=1;
+	while ((proc_array[i].p_state != P_EMPTY) && (i<NPROCS))
+	{
+		i++;
+	}
+	if (i == NPROCS)
+	{
+		return -1;
+	}
+	else
+	{
+		process_t *newthread = &proc_array[i];
+		newthread -> p_state =P_RUNNABLE;
+		newthread->p_registers = current->p_registers;
+		//create stack
+		uint32_t newthread_stack = PROC1_STACK_ADDR + ((int)(newthread->p_pid))*PROC_STACK_SIZE;
+		newthread->p_registers.reg_esp = newthread_stack;
+		newthread->p_registers.reg_eip = start_function;
+		newthread->p_registers.reg_eax = 0;
+		return newthread->p_pid;
+	}
+
+}
+case INT_SYS_NEWTHREAD:
+	current->p_registers.reg_eax = do_newthread(current, current->p_registers.reg_eax);
+		run(current);
+
+Response to Exercise 7:
+the code added in to files:
+//mpos.h
+#define INT_SYS_KILL		91
+
+//mpos-app.h
+static inline int
+sys_kill(pid_t pid)
+{
+	int retval;
+	asm volatile("int %1\n"
+		     : "=a" (retval)
+		     : "i" (INT_SYS_KILL),
+		       "a" (pid)
+		     : "cc", "memory");
+	return retval;
+}
+
+//mpos-kern.c
+case INT_SYS_KILL:
+	{
+		pid_t p = current->p_registers.reg_eax;
+		process_t *toKill = &proc_array[p];
+		if (p <= 0 || p >= NPROCS || p == current->p_pid
+		    || proc_array[p].p_state == P_EMPTY)
+			current->p_registers.reg_eax = -1;
+		else if (proc_array[p].p_state != P_ZOMBIE)
+		{
+			proc_array[p].p_exit_status = -1;
+			proc_array[p].p_state = P_EMPTY;
+			if(proc_array[p].p_wait != 0)	//some process waiting to be waken
+			{
+				pid_t toWake = proc_array[p].p_wait;
+				proc_array[toWake].p_state = P_RUNNABLE;
+				proc_array[toWake].p_registers.reg_eax = proc_array[p].p_exit_status;
+			}
+			
+		}
+		else
+		{
+			proc_array[p].p_state == P_EMPTY;
+			current->p_registers.reg_eax = 0;
+		}
+		schedule();
+	}
+
+//mpos-app2.c
+	pid_t current_pid = sys_getpid();
+	int tokill=3;
+	if (current_pid%2 == 0)
+	{
+		while(tokill<NPROCS)
+		{
+			sys_kill(tokill);
+			tokill +=2;
+		}
+	}
+
+
+Anything else you'd like us to know:
+
+
+
+ocesses. */
+//#######MY CODE##########//
+		pid_t current_pid = sys_getpid();
+	if (current_pid%2 == 0)
+	{
+		int i=3; 
+		for (i; i<NPROCS;)
+		{
+			sys_kill(i);
+			i += 2;
+		}
+	}
+//#######MY CODE##########//
+	app_printf("Process %d lives, counter %d!\n",
+		   sys_getpid(), input_counter);
+	sys_exit(input_counter);
+}
+
+
+Anything else you'd like us to know:
+exer7: for some reason, the last two processes are both "process 2" and are in the same color.
+
+

@@ -1,0 +1,168 @@
+Name: Qinyi Yan
+UCLA ID:
+704406413
+Collaborators:
+None
+-------------------------------------------------------------------------------
+
+Response to Exercise 1:
+
+The name of the scheduling algorithm is: round robin
+
+
+(Exercise 2 is a coding exercise)
+Exercise 2 simply run the current pid when schedule is called.  
+ 
+########code for EXER.2##########
+//"schedos-kern.c":
+else if (scheduling_algorithm == __EXERCISE_2__)
+	{
+		pid_t i;
+		for (i = 1; i<NPROCS; i++)
+		{
+			if (proc_array[i].p_state == P_RUNNABLE)
+			{
+				run(&proc_array[i]);
+				break;
+			}
+		}
+		run(&proc_array[i]);
+	}
+########code for EXER.2 ends##########
+
+
+Exercise 3:
+
+Average turnaround time for scheduling_algorithm 0: (4*319+1 + 4 *319+2 + 4*319+3 + 4*319+4)/4 = 1278.5 ms 
+Average turnaround time for scheduling_algorithm 1: (320 + 640 + 960 + 1280) /4 = 800 ms 
+
+// Simply takes the time each process waits to execute for the first time as wait time//
+Average wait time for scheduling_algorithm 0:  (0+1+2+3)/4 = 6/4 = 1.5 ms. 
+Average wait time for scheduling_algorithm 1: (0 + 320 + 2*320 + 3*320)/4 = 480 ms 
+
+
+Exercise 4:
+
+Did you complete Exercise 4A, Exercise 4B, or both for extra credit?
+I did both Exer.4A and Exer.4B
+!!!Note: need to uncomment "#define __EXERCISE_4A__"in the beginning of "schedos-1.c" to correctly run 4B code.!!!
+!!!Note: need to comment out "#define __EXERCISE_4A__"in the beginning of "schedos-1.c" to correctly run 4B code.!!!
+
+4A: The system call sys_priority(int p) function is implemented for case INT_SYS_PRIORITY in schedos.h.  An extra field "p_priority" is added to indicate the priority of each process. The process with higher priority gets to run first. If there is no other processes of the same priority, it gets the chance to run to finish. If there is, the scheduling algorithm will allocate the processor to the other processes and alternates.
+########code for EXER.4A##########
+//"schedos-kern.c":
+else if (scheduling_algorithm == __EXERCISE_4A__)
+	{
+		
+		 int high_priority = 10;
+		// pid_t pid = current->p_pid;
+		while (1)
+		{
+			pid_t cur_pid;
+
+			for (cur_pid = 0; cur_pid < NPROCS; cur_pid++)
+			{
+				if (proc_array[cur_pid].p_state == P_RUNNABLE && proc_array[cur_pid].p_priority < high_priority)
+				{
+					high_priority = proc_array[cur_pid].p_priority;
+				}
+			}
+			//run the next proc
+			pid = (pid+1) % NPROCS;	//next process
+			if (proc_array[pid].p_state == P_RUNNABLE && proc_array[pid].p_priority <= high_priority)
+				run(&proc_array[pid]);
+		}
+	}
+########code for EXER.4A ends##########
+
+4B: The system call sys_share(int p) function is implemented, for case INT_SYS_SHARE. Extra fields p_share, p_run_times are added to the process structure. Initially set p_share to 1 and p_run_times to 0. Using runtimes to count how many time the process runs.When the runtimes is smaller than the share, run the current process. Otherwise reset it to zero and run the next runnable process. Using pid+1%NPROCS to keep track of the next process. 
+########code for EXER.4B##########
+//"schedos-kern.c":
+else if(scheduling_algorithm == __EXERCISE_4B__)
+	{
+		while(1)
+		{
+			if(proc_array[pid].p_state == P_RUNNABLE && proc_array[pid].p_run_times< proc_array[pid].p_share)
+			{
+				proc_array[pid].p_run_times++;
+				run(&proc_array[pid]);
+				
+			}
+			if (proc_array[pid].p_run_times >= proc_array[pid].p_share)
+			{
+					//reset the runtime value
+						proc_array[pid].p_run_times = 0;
+			}
+				
+			pid = (pid + 1) % NPROCS;
+		}
+	}
+########code for EXER.4B ends##########
+
+
+
+Exercise 5:
+According to the picture, the 4th process is first known to be interrupted.
+The given output is 1234 1234 1234 1234 123 1234 1... As we can see, a "4" is missing in the fifth chunk of "1234". Obviously, it is interrupted.
+
+(Exercise 6 is a coding exercise)
+##########code for Exer.6#########
+//"schedos-1.c": 
+while(atomic_swap(&lock,1)!= 0)
+		{
+			//get the lock;
+			continue;
+		}
+		*cursorpos++ = PRINTCHAR;
+		atomic_swap(&lock,0);
+##########end code for Exer.6#########		
+
+Anything else you'd like us to know:
+
+
+
+Extra credit exercises:
+Exercise 7:
+The lottery scheduling algorithm is implemented.
+An array is used to store the pid of the 4 processes. During the scheduling, a random number will be generated to pick out a "winner" from the array using the index of the array, and the process indicated by the winner gets the chance to run and yield, if the process state is RUNNABLE. 
+########code for EXER.7##########
+//"schedos-kern.c":
+else if (scheduling_algorithm == __EXERCISE_7__)
+	{
+		while(1)
+		{
+		int lottery_num;
+		lottery_num = rand_lottery_num ();
+		pid_t winner = lottery_array[lottery_num];
+		if (proc_array[winner].p_state==P_RUNNABLE)
+			run(&proc_array[winner]);
+		}
+	}
+
+//functions used:
+void give_lottery_number (pid_t * lottery_array)
+{
+	pid_t i;
+	for (i = 1; i<NPROCS; i++)
+	{
+		int j;
+		for (j=0; j<RUNCOUNT; j++)
+			lottery_array[RUNCOUNT*(i-1)+j] = proc_array[i].p_pid;
+	}
+}
+
+int rand_lottery_num( void ) 
+{
+    next = next * 1103515245 + 12345;
+    return (unsigned int)(next / 65536) % (LOTTERYSIZE);
+}
+########code for EXER.7 ends##########
+
+Exercise 8:
+Another system call "sys_atomic_print" is implemented, which will print the char atomically.
+Added the corresponding case INI_SYS_PRINT. After testing, it will work either in exercise 6 way or the new system call way.
+The race condition is prevented.
+##########code for Exer.8#########
+//"schedos-1.c": 
+sys_atomic_print(PRINTCHAR);
+##########end code for Exer.8#########	
